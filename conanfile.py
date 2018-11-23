@@ -48,31 +48,33 @@ class FFmpegConan(ConanFile):
             os.rename("ffmpeg-{0}-macos64-static".format(self.tag), self.source_subfolder)
 
         elif tools.os_info.is_linux:
-            if self.options['use_cuda']:
+            if self.options.use_cuda:
                 # there is an additional part for cuda support
                 tools.get('https://github.com/FFmpeg/nv-codec-headers/releases/download/n8.2.15.6/nv-codec-headers-8.2.15.6.tar.gz')
-                os.rename('nv-codec-headers-n8.2.15.6', os.path.join(self.source_subfolder, 'nv-codec-headers'))
+                os.rename('nv-codec-headers-n8.2.15.6', 'nv-codec-headers')
 
             tools.get("https://ffmpeg.org/releases/ffmpeg-{0}.tar.xz".format(self.version))
-            os.rename("ffmpeg-{0}".format(self.version), os.path.join(self.source_subfolder, 'ffmpeg'))
+            os.rename("ffmpeg-{0}".format(self.version), 'ffmpeg')
 
     def build(self):
         if tools.os_info.is_linux:
 
             # Install nv codec headers
-            if self.options['use_cuda']:
-                with tools.chdir(os.path.join(self.source_subfolder, 'nv-codec-headers')):
+            if self.options.use_cuda:
+                with tools.chdir('nv-codec-headers'):
                     autotools = AutoToolsBuildEnvironment(self)
                     autotools.fpic = True
-                    autotools.make(args="PREFIX={0}".format(self.package_folder))
-                    autotools.install(args="PREFIX={0}".format(self.package_folder))
+                    autotools.make(args=["PREFIX={0}".format(self.package_folder)])
+                    autotools.install(args=["PREFIX={0}".format(self.package_folder)])
+                    autotools.make()
+                    autotools.install()
 
             # Build ffmpeg
-            with tools.chdir(os.path.join(self.source_subfolder, 'ffmpeg')):
+            with tools.chdir('ffmpeg'):
                 autotools = AutoToolsBuildEnvironment(self)
                 autotools.fpic = True
 
-                if self.options['use_cuda']:
+                if self.options.use_cuda:
                     autotools.configure(
                         args=[
                             '--enable-gpl',
@@ -81,10 +83,9 @@ class FFmpegConan(ConanFile):
                             '--enable-ffnvcodec',
                             '--enable-cuda',
                             '--enable-cuvid',
-                            '--enable-nvenc',
-                            "--extra-cflags=\"-I{0}/include\"".format(self.package_folder),
-                            "--extra-ldflags=\"-L{0}/lib\"".format(self.package_folder)
-                        ]
+                            '--enable-nvenc'
+                        ],
+                        pkg_config_paths=[os.path.join(self.package_folder, 'lib', 'pkgconfig')]
                     )
                 else:
                     autotools.configure(
