@@ -66,8 +66,6 @@ class FFmpegConan(ConanFile):
                     autotools.fpic = True
                     autotools.make(args=["PREFIX={0}".format(self.package_folder)])
                     autotools.install(args=["PREFIX={0}".format(self.package_folder)])
-                    autotools.make()
-                    autotools.install()
 
             # Build ffmpeg
             with tools.chdir('ffmpeg'):
