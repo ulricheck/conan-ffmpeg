@@ -14,7 +14,7 @@ class FFmpegConan(ConanFile):
     version = "4.1"
     tag = "20181122-ce0a753"
     description = "A complete, cross-platform solution to record, convert and stream audio and video."
-    url = "https://gitlab.lan.local/conan/conan-ffmpeg"
+    url = "https://git.ircad.fr/conan/conan-ffmpeg"
     license = "LGPL"
     settings = "os", "arch", "compiler", "build_type"
     options = {
