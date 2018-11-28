@@ -28,11 +28,21 @@ class FFmpegConan(ConanFile):
         if 'CI' not in os.environ:
             os.environ["CONAN_SYSREQUIRES_MODE"] = "verify"
 
-    def system_requirements(self):
+    def build_requirements(self):
         if tools.os_info.linux_distro == "linuxmint":
             pack_names = [
                 "libx264-dev",
                 "libx265-dev"
+            ]
+            installer = tools.SystemPackageTool()
+            for p in pack_names:
+                installer.install(p)
+
+    def system_requirements(self):
+        if tools.os_info.linux_distro == "linuxmint":
+            pack_names = [
+                "libx264-148",
+                "libx265-79"
             ]
             installer = tools.SystemPackageTool()
             for p in pack_names:
