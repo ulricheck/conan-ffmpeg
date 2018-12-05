@@ -5,8 +5,7 @@ import os
 import shutil
 from distutils.dir_util import copy_tree
 
-from conans import ConanFile, AutoToolsBuildEnvironment
-from conans.client import tools
+from conans import ConanFile, tools, AutoToolsBuildEnvironment
 
 
 class FFmpegConan(ConanFile):
