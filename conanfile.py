@@ -11,7 +11,7 @@ from conans import ConanFile, tools, AutoToolsBuildEnvironment
 class FFmpegConan(ConanFile):
     name = "ffmpeg"
     version = "4.1"
-    tag = "20181122-ce0a753"
+    tag = "20181212-32601fb"
     description = "A complete, cross-platform solution to record, convert and stream audio and video."
     url = "https://git.ircad.fr/conan/conan-ffmpeg"
     license = "LGPL"
@@ -49,11 +49,11 @@ class FFmpegConan(ConanFile):
 
     def source(self):
         if tools.os_info.is_windows:
-            tools.get("https://ffmpeg.zeranoe.com/builds/win64/static/ffmpeg-{0}-win64-static.zip".format(self.tag))
+            tools.get("https://conan.ircad.fr/artifactory/list/data/ffmpeg-{0}-win64-static.zip".format(self.tag))
             os.rename("ffmpeg-{0}-win64-static".format(self.tag), self.source_subfolder)
 
         elif tools.os_info.is_macos:
-            tools.get("https://ffmpeg.zeranoe.com/builds/macos64/static/ffmpeg-{0}-macos64-static.zip".format(self.tag))
+            tools.get("https://conan.ircad.fr/artifactory/list/data/ffmpeg-{0}-macos64-static.zip".format(self.tag))
             os.rename("ffmpeg-{0}-macos64-static".format(self.tag), self.source_subfolder)
 
         elif tools.os_info.is_linux:
