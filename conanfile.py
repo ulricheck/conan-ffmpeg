@@ -39,10 +39,17 @@ class FFmpegConan(ConanFile):
 
     def system_requirements(self):
         if tools.os_info.linux_distro == "linuxmint":
-            pack_names = [
-                "libx264-148",
-                "libx265-79"
-            ]
+            pack_names = []
+            if tools.os_info.os_version.major(fill=False) == "18":
+                pack_names = [
+                    "libx264-148",
+                    "libx265-79"
+                ]
+            elif tools.os_info.os_version.major(fill=False) == "19":
+                pack_names = [
+                    "libx264-152",
+                    "libx265-146"
+                ]
             installer = tools.SystemPackageTool()
             for p in pack_names:
                 installer.install(p)
