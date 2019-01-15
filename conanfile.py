@@ -26,6 +26,7 @@ class FFmpegConan(ConanFile):
     def configure(self):
         if 'CI' not in os.environ:
             os.environ["CONAN_SYSREQUIRES_MODE"] = "verify"
+        del self.settings.compiler.libcxx
 
     def build_requirements(self):
         if tools.os_info.linux_distro == "linuxmint":
