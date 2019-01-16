@@ -65,30 +65,18 @@ class FFmpegConan(ConanFile):
             os.rename("ffmpeg-{0}-macos64-static".format(self.tag), self.source_subfolder)
 
         elif tools.os_info.is_linux:
-            if self.options.use_cuda:
-                # there is an additional part for cuda support
-                tools.get('https://github.com/FFmpeg/nv-codec-headers/releases/download/n8.2.15.6/nv-codec-headers-8.2.15.6.tar.gz')
-                os.rename('nv-codec-headers-n8.2.15.6', 'nv-codec-headers')
-
             tools.get("https://ffmpeg.org/releases/ffmpeg-{0}.tar.xz".format(self.version))
             os.rename("ffmpeg-{0}".format(self.version), 'ffmpeg')
 
     def build(self):
         if tools.os_info.is_linux:
-
-            # Install nv codec headers
-            if self.options.use_cuda:
-                with tools.chdir('nv-codec-headers'):
-                    autotools = AutoToolsBuildEnvironment(self)
-                    autotools.fpic = True
-                    autotools.make(args=["PREFIX={0}".format(self.package_folder)])
-                    autotools.install(args=["PREFIX={0}".format(self.package_folder)])
-
             # Build ffmpeg
             with tools.chdir('ffmpeg'):
                 autotools = AutoToolsBuildEnvironment(self)
                 autotools.fpic = True
 
+                # Enabling gpl and non-free may be problematic if we use the built library. For now we use only the built executable, so we don't care
+                # Anyway, using h264 and h265 is normally also prohibited as the codec require licensing
                 if self.options.use_cuda:
                     autotools.configure(
                         args=[
@@ -98,7 +86,9 @@ class FFmpegConan(ConanFile):
                             '--enable-ffnvcodec',
                             '--enable-cuda',
                             '--enable-cuvid',
-                            '--enable-nvenc'
+                            '--enable-nvenc',
+                            '--enable-nonfree',
+                            '--enable-libnpp'
                         ],
                         pkg_config_paths=[os.path.join(self.package_folder, 'lib', 'pkgconfig')]
                     )
@@ -107,7 +97,8 @@ class FFmpegConan(ConanFile):
                         args=[
                             '--enable-gpl',
                             '--enable-libx264',
-                            '--enable-libx265'
+                            '--enable-libx265',
+                            '--enable-nonfree'
                         ]
                     )
                 autotools.make()
