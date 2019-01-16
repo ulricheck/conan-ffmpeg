@@ -88,7 +88,9 @@ class FFmpegConan(ConanFile):
                             '--enable-cuvid',
                             '--enable-nvenc',
                             '--enable-nonfree',
-                            '--enable-libnpp'
+                            '--enable-libnpp',
+                            '--extra-cflags=-I/usr/local/cuda/include',
+                            '--extra-ldflags=-L/usr/local/cuda/lib64'
                         ],
                         pkg_config_paths=[os.path.join(self.package_folder, 'lib', 'pkgconfig')]
                     )
