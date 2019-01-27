@@ -10,16 +10,17 @@ from conans import ConanFile, tools, AutoToolsBuildEnvironment
 
 class FFmpegConan(ConanFile):
     name = "ffmpeg"
-    version = "4.1"
+    short_version = "4.1"
+    version = "{0}-r1".format(short_version)
     tag = "20181212-32601fb"
     description = "A complete, cross-platform solution to record, convert and stream audio and video."
     url = "https://git.ircad.fr/conan/conan-ffmpeg"
     license = "LGPL"
     settings = "os", "arch", "compiler", "build_type"
     options = {
-        "use_cuda": [True, False]
+        "cuda": ["9.2", "10.0", "None"]
     }
-    default_options = "use_cuda=False"
+    default_options = "cuda=None"
     source_subfolder = "source_subfolder"
     build_subfolder = "build_subfolder"
 
@@ -65,8 +66,8 @@ class FFmpegConan(ConanFile):
             os.rename("ffmpeg-{0}-macos64-static".format(self.tag), self.source_subfolder)
 
         elif tools.os_info.is_linux:
-            tools.get("https://ffmpeg.org/releases/ffmpeg-{0}.tar.xz".format(self.version))
-            os.rename("ffmpeg-{0}".format(self.version), 'ffmpeg')
+            tools.get("https://ffmpeg.org/releases/ffmpeg-{0}.tar.xz".format(self.short_version))
+            os.rename("ffmpeg-{0}".format(self.short_version), 'ffmpeg')
 
     def build(self):
         if tools.os_info.is_linux:
@@ -77,7 +78,7 @@ class FFmpegConan(ConanFile):
 
                 # Enabling gpl and non-free may be problematic if we use the built library. For now we use only the built executable, so we don't care
                 # Anyway, using h264 and h265 is normally also prohibited as the codec require licensing
-                if self.options.use_cuda:
+                if self.options.cuda != "None":
                     autotools.configure(
                         args=[
                             '--enable-gpl',
