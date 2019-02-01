@@ -58,12 +58,16 @@ class FFmpegConan(ConanFile):
 
     def source(self):
         if tools.os_info.is_windows:
-            tools.get("https://conan.ircad.fr/artifactory/list/data/ffmpeg-{0}-win64-static.zip".format(self.tag))
-            os.rename("ffmpeg-{0}-win64-static".format(self.tag), self.source_subfolder)
+            tools.get("https://conan.ircad.fr/artifactory/list/data/ffmpeg-{0}-win64-dev.zip".format(self.tag))
+            copy_tree("ffmpeg-{0}-win64-dev".format(self.tag), self.source_subfolder)
+            tools.get("https://conan.ircad.fr/artifactory/list/data/ffmpeg-{0}-win64-shared.zip".format(self.tag))
+            copy_tree("ffmpeg-{0}-win64-shared".format(self.tag), self.source_subfolder)
 
         elif tools.os_info.is_macos:
-            tools.get("https://conan.ircad.fr/artifactory/list/data/ffmpeg-{0}-macos64-static.zip".format(self.tag))
-            os.rename("ffmpeg-{0}-macos64-static".format(self.tag), self.source_subfolder)
+            tools.get("https://conan.ircad.fr/artifactory/list/data/ffmpeg-{0}-macos64-dev.zip".format(self.tag))
+            copy_tree("ffmpeg-{0}-macos64-dev".format(self.tag), self.source_subfolder)
+            tools.get("https://conan.ircad.fr/artifactory/list/data/ffmpeg-{0}-macos64-shared.zip".format(self.tag))
+            copy_tree("ffmpeg-{0}-macos64-shared".format(self.tag), self.source_subfolder)
 
         elif tools.os_info.is_linux:
             tools.get("https://ffmpeg.org/releases/ffmpeg-{0}.tar.xz".format(self.short_version))
@@ -110,6 +114,9 @@ class FFmpegConan(ConanFile):
     def package(self):
         if not tools.os_info.is_linux:
             copy_tree(self.source_subfolder, self.package_folder)
+        if tools.os_info.is_macos:
+            out_bin_dir = os.path.join(self.package_folder, "bin")
+            self.copy(pattern="*.dylib*", dst="lib", src=out_bin_dir, keep_path=False)
 
     def package_id(self):
         self.info.include_build_settings()
