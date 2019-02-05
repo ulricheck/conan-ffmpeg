@@ -11,7 +11,7 @@ from conans import ConanFile, tools, AutoToolsBuildEnvironment
 class FFmpegConan(ConanFile):
     name = "ffmpeg"
     short_version = "4.1"
-    version = "{0}-r1".format(short_version)
+    version = "{0}-r2".format(short_version)
     tag = "20181212-32601fb"
     description = "A complete, cross-platform solution to record, convert and stream audio and video."
     url = "https://git.ircad.fr/conan/conan-ffmpeg"
