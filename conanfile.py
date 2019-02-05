@@ -18,9 +18,17 @@ class FFmpegConan(ConanFile):
     license = "LGPL"
     settings = "os", "arch", "compiler", "build_type"
     options = {
-        "cuda": ["9.2", "10.0", "None"]
+        "cuda": ["9.2", "10.0", "None"],
+        "shared": ["True", "False"]
     }
-    default_options = "cuda=None"
+    default_options = tuple([
+        "cuda=None", 
+        "shared=True"
+    ])
+    
+    exports = [
+        "FindFFMPEG.cmake"
+    ]
     source_subfolder = "source_subfolder"
     build_subfolder = "build_subfolder"
 
@@ -79,41 +87,51 @@ class FFmpegConan(ConanFile):
             with tools.chdir('ffmpeg'):
                 autotools = AutoToolsBuildEnvironment(self)
                 autotools.fpic = True
+                configure_args = [
+                    '--enable-gpl',
+                    '--enable-libx264',
+                    '--enable-libx265',
+                    '--enable-nonfree'
+                ]
+
+                if self.options.shared:
+                    configure_args += [
+                        '--disable-static',
+                        '--enable-shared'
+                    ]
+                else:
+                    configure_args += [
+                        '--enable-static',
+                        '--disable-shared'
+                    ]
 
                 # Enabling gpl and non-free may be problematic if we use the built library. For now we use only the built executable, so we don't care
                 # Anyway, using h264 and h265 is normally also prohibited as the codec require licensing
                 if self.options.cuda != "None":
-                    autotools.configure(
-                        args=[
-                            '--enable-gpl',
-                            '--enable-libx264',
-                            '--enable-libx265',
+                    configure_args += [
                             '--enable-ffnvcodec',
                             '--enable-cuda',
                             '--enable-cuvid',
-                            '--enable-nvenc',
-                            '--enable-nonfree',
+                            '--enable-nvenc',                            
                             '--enable-libnpp',
                             '--extra-cflags=-I/usr/local/cuda/include',
                             '--extra-ldflags=-L/usr/local/cuda/lib64'
-                        ],
-                        pkg_config_paths=[os.path.join(self.package_folder, 'lib', 'pkgconfig')]
-                    )
-                else:
-                    autotools.configure(
-                        args=[
-                            '--enable-gpl',
-                            '--enable-libx264',
-                            '--enable-libx265',
-                            '--enable-nonfree'
-                        ]
-                    )
+                    ]
+                
+                autotools.configure(
+                    args=configure_args,
+                    pkg_config_paths=[os.path.join(self.package_folder, 'lib', 'pkgconfig')]
+                )
+
                 autotools.make()
                 autotools.install()
 
     def package(self):
+        self.copy("FindFFMPEG.cmake", src=".", dst=".", keep_path=False)
+
         if not tools.os_info.is_linux:
             copy_tree(self.source_subfolder, self.package_folder)
+        
         if tools.os_info.is_macos:
             out_bin_dir = os.path.join(self.package_folder, "bin")
             self.copy(pattern="*.dylib*", dst="lib", src=out_bin_dir, keep_path=False)
@@ -125,6 +143,8 @@ class FFmpegConan(ConanFile):
             del self.info.settings.compiler
 
     def package_info(self):
+        self.cpp_info.libs = tools.collect_libs(self)
+
         if tools.os_info.is_linux:
             self.output.info("Using ffmpeg {0}".format(self.version))
         else:
