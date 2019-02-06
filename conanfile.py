@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import re
 import shutil
 from distutils.dir_util import copy_tree
 
@@ -22,10 +23,10 @@ class FFmpegConan(ConanFile):
         "shared": ["True", "False"]
     }
     default_options = tuple([
-        "cuda=None", 
+        "cuda=None",
         "shared=True"
     ])
-    
+
     exports = [
         "FindFFMPEG.cmake"
     ]
@@ -109,15 +110,15 @@ class FFmpegConan(ConanFile):
                 # Anyway, using h264 and h265 is normally also prohibited as the codec require licensing
                 if self.options.cuda != "None":
                     configure_args += [
-                            '--enable-ffnvcodec',
-                            '--enable-cuda',
-                            '--enable-cuvid',
-                            '--enable-nvenc',                            
-                            '--enable-libnpp',
-                            '--extra-cflags=-I/usr/local/cuda/include',
-                            '--extra-ldflags=-L/usr/local/cuda/lib64'
+                        '--enable-ffnvcodec',
+                        '--enable-cuda',
+                        '--enable-cuvid',
+                        '--enable-nvenc',
+                        '--enable-libnpp',
+                        '--extra-cflags=-I/usr/local/cuda/include',
+                        '--extra-ldflags=-L/usr/local/cuda/lib64'
                     ]
-                
+
                 autotools.configure(
                     args=configure_args,
                     pkg_config_paths=[os.path.join(self.package_folder, 'lib', 'pkgconfig')]
@@ -131,10 +132,27 @@ class FFmpegConan(ConanFile):
 
         if not tools.os_info.is_linux:
             copy_tree(self.source_subfolder, self.package_folder)
-        
+
         if tools.os_info.is_macos:
             out_bin_dir = os.path.join(self.package_folder, "bin")
+
+            # Copy dylib as binaries want them here
             self.copy(pattern="*.dylib*", dst="lib", src=out_bin_dir, keep_path=False)
+
+            # Make binaries executable
+            os.chmod(os.path.join(out_bin_dir, 'ffmpeg'), 0o0755)
+            os.chmod(os.path.join(out_bin_dir, 'ffplay'), 0o0755)
+            os.chmod(os.path.join(out_bin_dir, 'ffprobe'), 0o0755)
+
+            # Create symlink without version name for libs
+            out_lib_dir = os.path.join(self.package_folder, "lib")
+
+            for root, dir, files in os.walk(out_lib_dir):
+                with tools.chdir(root):
+                    for file in files:
+                        match = re.match('(.*)\\..*\\.dylib', file)
+                        if match and match.lastindex == 1:
+                            os.symlink(file, "{0}.dylib".format(match.group(1)))
 
     def package_id(self):
         self.info.include_build_settings()
