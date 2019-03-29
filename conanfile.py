@@ -11,8 +11,9 @@ from conans import ConanFile, tools, AutoToolsBuildEnvironment
 
 class FFmpegConan(ConanFile):
     name = "ffmpeg"
-    short_version = "4.1"
-    version = "{0}-r2".format(short_version)
+    package_revision = "-r3"
+    upstream_version = "4.1"
+    version = "{0}{1}".format(upstream_version, package_revision)
     tag = "20181212-32601fb"
     description = "A complete, cross-platform solution to record, convert and stream audio and video."
     url = "https://git.ircad.fr/conan/conan-ffmpeg"
@@ -79,8 +80,8 @@ class FFmpegConan(ConanFile):
             copy_tree("ffmpeg-{0}-macos64-shared".format(self.tag), self.source_subfolder)
 
         elif tools.os_info.is_linux:
-            tools.get("https://ffmpeg.org/releases/ffmpeg-{0}.tar.xz".format(self.short_version))
-            os.rename("ffmpeg-{0}".format(self.short_version), 'ffmpeg')
+            tools.get("https://ffmpeg.org/releases/ffmpeg-{0}.tar.xz".format(self.upstream_version))
+            os.rename("ffmpeg-{0}".format(self.upstream_version), 'ffmpeg')
 
     def build(self):
         if tools.os_info.is_linux:
@@ -164,8 +165,8 @@ class FFmpegConan(ConanFile):
         self.cpp_info.libs = tools.collect_libs(self)
 
         if tools.os_info.is_linux:
-            self.output.info("Using ffmpeg {0}".format(self.version))
+            self.output.info("Using ffmpeg {0}".format(self.upstream_version))
         else:
-            self.output.info("Using ffmpeg {0} build {1}".format(self.version, self.build))
+            self.output.info("Using ffmpeg {0} build {1}".format(self.upstream_version, self.build))
 
         self.env_info.path.append(os.path.join(self.package_folder, 'bin'))
