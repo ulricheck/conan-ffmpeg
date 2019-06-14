@@ -121,12 +121,12 @@ class FFmpegConan(ConanFile):
                         '--enable-cuvid',
                         '--enable-nvenc',
                         '--enable-libnpp',
-                        "--extra-cflags=-I/usr/local/cuda/include {0} --fuck".format(common.get_c_flags()),
+                        "--extra-cflags=-I/usr/local/cuda/include {0}".format(common.get_c_flags()),
                         '--extra-ldflags=-L/usr/local/cuda/lib64'
                     ]
                 else:
                     configure_args += [
-                        "--extra-cflags={0} --fuck".format(common.get_c_flags())
+                        "--extra-cflags={0}".format(common.get_c_flags())
                     ]
 
                 autotools.configure(
