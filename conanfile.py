@@ -11,7 +11,7 @@ from conans import ConanFile, tools, AutoToolsBuildEnvironment
 
 class FFmpegConan(ConanFile):
     name = "ffmpeg"
-    package_revision = "-r3"
+    package_revision = "-r4"
     upstream_version = "4.1"
     version = "{0}{1}".format(upstream_version, package_revision)
     tag = "20181212-32601fb"
@@ -66,6 +66,9 @@ class FFmpegConan(ConanFile):
             for p in pack_names:
                 installer.install(p)
 
+    def requirements(self):
+        self.requires("common/1.0.0@sight/stable")
+
     def source(self):
         if tools.os_info.is_windows:
             tools.get("https://conan.ircad.fr/artifactory/list/data/ffmpeg-{0}-win64-dev.zip".format(self.tag))
@@ -84,6 +87,8 @@ class FFmpegConan(ConanFile):
             os.rename("ffmpeg-{0}".format(self.upstream_version), 'ffmpeg')
 
     def build(self):
+        #Import common flags and defines
+        import common
         if tools.os_info.is_linux:
             # Build ffmpeg
             with tools.chdir('ffmpeg'):
@@ -116,8 +121,12 @@ class FFmpegConan(ConanFile):
                         '--enable-cuvid',
                         '--enable-nvenc',
                         '--enable-libnpp',
-                        '--extra-cflags=-I/usr/local/cuda/include',
+                        "--extra-cflags=-I/usr/local/cuda/include {0}".format(common.get_c_flags()),
                         '--extra-ldflags=-L/usr/local/cuda/lib64'
+                    ]
+                else:
+                    configure_args += [
+                        "--extra-cflags={0}".format(common.get_c_flags())
                     ]
 
                 autotools.configure(
