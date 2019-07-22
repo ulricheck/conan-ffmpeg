@@ -11,7 +11,7 @@ from conans import ConanFile, tools, AutoToolsBuildEnvironment
 
 class FFmpegConan(ConanFile):
     name = "ffmpeg"
-    package_revision = "-r4"
+    package_revision = "-r5"
     upstream_version = "4.1"
     version = "{0}{1}".format(upstream_version, package_revision)
     tag = "20181212-32601fb"
