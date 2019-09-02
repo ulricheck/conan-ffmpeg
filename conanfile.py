@@ -11,7 +11,7 @@ from conans import ConanFile, tools, AutoToolsBuildEnvironment
 
 class FFmpegConan(ConanFile):
     name = "ffmpeg"
-    package_revision = "-r4"
+    package_revision = "-r5"
     upstream_version = "4.1"
     version = "{0}{1}".format(upstream_version, package_revision)
     tag = "20181212-32601fb"
@@ -20,7 +20,7 @@ class FFmpegConan(ConanFile):
     license = "LGPL"
     settings = "os", "arch", "compiler", "build_type"
     options = {
-        "cuda": ["9.2", "10.0", "None"],
+        "cuda": ["9.2", "10.0", "10.1", "None"],
         "shared": ["True", "False"]
     }
     default_options = tuple([
