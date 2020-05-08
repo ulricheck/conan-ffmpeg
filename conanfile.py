@@ -16,7 +16,7 @@ class FFmpegConan(ConanFile):
     version = "{0}{1}".format(upstream_version, package_revision)
     tag = "20181212-32601fb"
     description = "A complete, cross-platform solution to record, convert and stream audio and video."
-    url = "https://git.ircad.fr/conan/conan-ffmpeg"
+    url = "https://github.com/ulricheck/conan-ffmpeg"
     license = "LGPL"
     settings = "os", "arch", "compiler", "build_type"
     options = {
@@ -48,6 +48,14 @@ class FFmpegConan(ConanFile):
             installer = tools.SystemPackageTool()
             for p in pack_names:
                 installer.install(p)
+        elif tools.os_info.linux_distro == "ubuntu":
+            pack_names = [
+                "libx264-dev",
+                "libx265-dev"
+            ]
+            installer = tools.SystemPackageTool()
+            for p in pack_names:
+                installer.install(p)
 
     def system_requirements(self):
         if tools.os_info.linux_distro == "linuxmint":
@@ -65,9 +73,19 @@ class FFmpegConan(ConanFile):
             installer = tools.SystemPackageTool()
             for p in pack_names:
                 installer.install(p)
+        elif tools.os_info.linux_distro == "ubuntu":
+            pack_names = []
+            if tools.os_info.os_version.major(fill=False) == "18":
+                pack_names = [
+                    "libx264-152",
+                    "libx265-146"
+                ]
+            installer = tools.SystemPackageTool()
+            for p in pack_names:
+                installer.install(p)
 
     def requirements(self):
-        self.requires("common/1.0.0@sight/stable")
+        self.requires("ircad_common/1.0.0@camposs/stable")
 
     def source(self):
         if tools.os_info.is_windows:
