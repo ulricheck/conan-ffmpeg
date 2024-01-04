@@ -66,6 +66,8 @@ class FFMpegConan(ConanFile):
         "with_vdpau": [True, False],
         "with_vulkan": [True, False],
         "with_xcb": [True, False],
+        "with_cuda": [True, False],
+        "with_cuvid": [True, False],
         "with_appkit": [True, False],
         "with_avfoundation": [True, False],
         "with_coreimage": [True, False],
@@ -111,7 +113,7 @@ class FFMpegConan(ConanFile):
     default_options = {
         "shared": False,
         "fPIC": True,
-        "avdevice": True,
+        "avdevice": False,
         "avcodec": True,
         "avformat": True,
         "swresample": True,
@@ -123,32 +125,34 @@ class FFMpegConan(ConanFile):
         "with_bzip2": True,
         "with_lzma": True,
         "with_libiconv": True,
-        "with_freetype": True,
-        "with_openjpeg": True,
+        "with_freetype": False,
+        "with_openjpeg": False,
         "with_openh264": True,
         "with_opus": True,
-        "with_vorbis": True,
+        "with_vorbis": False,
         "with_zeromq": False,
         "with_sdl": False,
         "with_libx264": True,
         "with_libx265": True,
-        "with_libvpx": True,
-        "with_libmp3lame": True,
+        "with_libvpx": False,
+        "with_libmp3lame": False,
         "with_libfdk_aac": True,
         "with_libwebp": True,
         "with_ssl": "openssl",
-        "with_libalsa": True,
-        "with_pulse": True,
+        "with_libalsa": False,
+        "with_pulse": False,
         "with_vaapi": True,
         "with_vdpau": True,
         "with_vulkan": False,
-        "with_xcb": True,
+        "with_cuda": True,
+        "with_cuvid": True,
+        "with_xcb": False,
         "with_appkit": True,
         "with_avfoundation": True,
         "with_coreimage": True,
-        "with_audiotoolbox": True,
-        "with_videotoolbox": True,
-        "with_programs": True,
+        "with_audiotoolbox": False,
+        "with_videotoolbox": False,
+        "with_programs": False,
         "disable_everything": False,
         "disable_all_encoders": False,
         "disable_encoders": None,
@@ -244,6 +248,9 @@ class FFMpegConan(ConanFile):
             del self.options.with_videotoolbox
         if not is_apple_os(self):
             del self.options.with_avfoundation
+        if is_apple_os(self):
+            del self.options.with_cuda
+            del self.options.with_cuvid
         if not self._version_supports_vulkan:
             self.options.rm_safe("with_vulkan")
 
@@ -258,7 +265,7 @@ class FFMpegConan(ConanFile):
 
     def requirements(self):
         if self.options.with_zlib:
-            self.requires("zlib/[>=1.2.11 <2]")
+            self.requires("zlib/[>=1.2.11 <2]@camposs/stable")
         if self.options.with_bzip2:
             self.requires("bzip2/1.0.8")
         if self.options.with_lzma:
@@ -305,6 +312,10 @@ class FFMpegConan(ConanFile):
             self.requires("vdpau/system")
         if self._version_supports_vulkan and self.options.get_safe("with_vulkan"):
             self.requires("vulkan-loader/1.3.243.0")
+        if self.options.get_safe("with_cuda"):
+            self.requires("cuda_dev_config/2.1@camposs/stable")
+        if self.options.get_safe("with_cuvid"):
+            self.requires("nvidia-video-codec-sdk/12.1.14.0@vendor/stable")
 
     def validate(self):
         if self.options.with_ssl == "securetransport" and not is_apple_os(self):
@@ -485,8 +496,8 @@ class FFMpegConan(ConanFile):
                 "videotoolbox", self.options.get_safe("with_videotoolbox")),
             opt_enable_disable("securetransport",
                                self.options.with_ssl == "securetransport"),
-            "--disable-cuda",  # FIXME: CUDA support
-            "--disable-cuvid",  # FIXME: CUVID support
+            opt_enable_disable("cuda", self.options.get_safe("with_cuda")),
+            opt_enable_disable("cuvid", self.options.get_safe("with_cuvid")),
             # Licenses
             opt_enable_disable("nonfree", self.options.with_libfdk_aac or (self.options.with_ssl and (
                 self.options.with_libx264 or self.options.with_libx265 or self.options.postproc))),
@@ -675,6 +686,17 @@ class FFMpegConan(ConanFile):
             # ffmepg expects libx264.pc instead of x264.pc
             with chdir(self, self.generators_folder):
                 shutil.copy("x264.pc", "libx264.pc")
+        if self.options.with_cuda:
+            # ffmepg expects ffnvcodec.pc instead of nvidia-video-codec-sdk.pc
+            with chdir(self, self.generators_folder):
+                shutil.copy("nvidia-video-codec-sdk.pc", "ffnvcodec.pc")
+                replace_in_file(self, os.path.join(self.generators_folder, "ffnvcodec.pc"), "nvidia-video-codec-sdk", "ffnvcodec")
+                replace_in_file(self, os.path.join(self.generators_folder, "ffnvcodec.pc"), 
+                    """Libs: -L"${libdir}" -lnvcuvid -lnvidia-encode""",
+                    """Libs: -L"${libdir}" """)
+
+
+
         autotools = Autotools(self)
         autotools.configure()
         autotools.make()
@@ -941,6 +963,12 @@ class FFMpegConan(ConanFile):
             if self.options.get_safe("with_videotoolbox"):
                 self.cpp_info.components["avcodec"].frameworks.append(
                     "VideoToolbox")
+            if self.options.get_safe("with_cuda"):
+                self.cpp_info.components["avcodec"].requires.append(
+                    "cuda_dev_config::cuda_dev_config")
+            if self.options.get_safe("with_cuvid"):
+                self.cpp_info.components["avcodec"].requires.append(
+                    "nvidia-video-codec-sdk::nvidia-video-codec-sdk")
 
         if self.options.avformat:
             if self.options.with_bzip2:
