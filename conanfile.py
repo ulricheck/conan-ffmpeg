@@ -688,7 +688,7 @@ class FFMpegConan(ConanFile):
             # ffmepg expects libx264.pc instead of x264.pc
             with chdir(self, self.generators_folder):
                 shutil.copy("x264.pc", "libx264.pc")
-        if self.options.with_cuda:
+        if self.options.get_safe("with_cuda"):
             # ffmepg expects ffnvcodec.pc instead of nvidia-video-codec-sdk.pc
             with chdir(self, self.generators_folder):
                 shutil.copy("nvidia-video-codec-sdk.pc", "ffnvcodec.pc")
