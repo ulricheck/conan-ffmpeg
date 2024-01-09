@@ -5,7 +5,7 @@ from conan.tools.build import cross_building
 from conan.tools.env import Environment, VirtualBuildEnv, VirtualRunEnv
 from conan.tools.files import (
     apply_conandata_patches, chdir, copy, export_conandata_patches, get, rename,
-    replace_in_file, rm, rmdir
+    replace_in_file, rm, rmdir, load, save
 )
 from conan.tools.gnu import Autotools, AutotoolsDeps, AutotoolsToolchain, PkgConfigDeps
 from conan.tools.layout import basic_layout
@@ -231,7 +231,7 @@ class FFMpegConan(ConanFile):
         export_conandata_patches(self)
 
     def config_options(self):
-        if self.settings.os == "Windows":
+        if self.settings.os == "Windows" or self.settings.os == "WindowsStore":
             del self.options.fPIC
         if not self.settings.os in ["Linux", "FreeBSD"]:
             del self.options.with_vaapi
@@ -257,6 +257,8 @@ class FFMpegConan(ConanFile):
     def configure(self):
         if self.options.shared:
             self.options.rm_safe("fPIC")
+        if self.options.get_safe("with_cuda"):
+            self.options["cuda_dev_config"].shared = self.options.shared
         self.settings.rm_safe("compiler.cppstd")
         self.settings.rm_safe("compiler.libcxx")
 
@@ -265,7 +267,7 @@ class FFMpegConan(ConanFile):
 
     def requirements(self):
         if self.options.with_zlib:
-            self.requires("zlib/[>=1.2.11 <2]@camposs/stable")
+            self.requires("zlib/[>=1.2.11 <2]@camposs/stable", force=True)
         if self.options.with_bzip2:
             self.requires("bzip2/1.0.8")
         if self.options.with_lzma:
@@ -655,7 +657,7 @@ class FFMpegConan(ConanFile):
 
             env = Environment()
             env.append("CPPFLAGS", [f"-I{unix_path(self, p)}" for p in includedirs] + [f"-D{d}" for d in defines])
-            env.append("_LINK_", [lib if lib.endswith(".lib") else f"{lib}.lib" for lib in libs])
+            env.append("LIBS", [lib if lib.endswith(".lib") else f"{lib}.lib" for lib in libs])
             env.append("LDFLAGS", [f"-LIBPATH:{unix_path(self, p)}" for p in libdirs] + linkflags)
             env.append("CXXFLAGS", cxxflags)
             env.append("CFLAGS", cflags)
@@ -691,11 +693,10 @@ class FFMpegConan(ConanFile):
             with chdir(self, self.generators_folder):
                 shutil.copy("nvidia-video-codec-sdk.pc", "ffnvcodec.pc")
                 replace_in_file(self, os.path.join(self.generators_folder, "ffnvcodec.pc"), "nvidia-video-codec-sdk", "ffnvcodec")
-                replace_in_file(self, os.path.join(self.generators_folder, "ffnvcodec.pc"), 
-                    """Libs: -L"${libdir}" -lnvcuvid -lnvidia-encode""",
-                    """Libs: -L"${libdir}" """)
-
-
+                if not (self.settings.os == "Windows" or self.settings.os == "WindowsStore"):
+                    replace_in_file(self, os.path.join(self.generators_folder, "ffnvcodec.pc"), 
+                        """Libs: -L"${libdir}" -lnvcuvid -lnvidia-encode""",
+                        """Libs: -L"${libdir}" """)
 
         autotools = Autotools(self)
         autotools.configure()
