@@ -758,8 +758,6 @@ class FFMpegConan(ConanFile):
             env.append("CFLAGS", cflags)
             env.vars(self).save_script("conanautotoolsdeps_cl_workaround")
 
-            self.output.info("Environ: {0}".format(str(os.environ)))
-
         else:
             deps = AutotoolsDeps(self)
             deps.generate()
