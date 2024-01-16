@@ -18,6 +18,95 @@ import re
 
 required_conan_version = ">=1.57.0"
 
+#Workaround for UWP
+
+import textwrap
+from conan.internal import check_duplicated_generator
+from conans.client.conf.detect_vs import vs_installation_path
+from conan.errors import ConanException
+from conan.tools.intel.intel_cc import IntelCC
+
+from conan.tools.microsoft.visual import _vcvars_vers, _vcvars_arch, vs_ide_version, vcvars_command
+
+CONAN_VCVARS_FILE = "conanvcvars.bat"
+
+class VCVarsUWP:
+    """
+    VCVars class generator
+    """
+
+    def __init__(self, conanfile):
+        """
+        :param conanfile: ``< ConanFile object >`` The current recipe object. Always use ``self``.
+        """
+        self._conanfile = conanfile
+
+    def generate(self, scope="build"):
+        """
+        Creates a ``conanvcvars.bat`` file with the good args from settings to set environment
+        variables to configure the command line for native 32-bit or 64-bit compilation.
+
+        :param scope: ``str`` Launcher to be used to run all the variables. For instance,
+                      if ``build``, then it'll be used the ``conanbuild`` launcher.
+        """
+        check_duplicated_generator(self, self._conanfile)
+        conanfile = self._conanfile
+        os_ = conanfile.settings.get_safe("os")
+        if os_ != "WindowsStore":
+            return
+
+        compiler = conanfile.settings.get_safe("compiler")
+        if compiler not in ("msvc", "clang"):
+            return
+
+        vs_install_path = conanfile.conf.get("tools.microsoft.msbuild:installation_path")
+        if vs_install_path == "":  # Empty string means "disable"
+            return
+
+        if compiler == "clang":
+            # The vcvars only needed for LLVM/Clang and VS ClangCL, who define runtime
+            if not conanfile.settings.get_safe("compiler.runtime"):
+                # NMake Makefiles will need vcvars activated, for VS target, defined with runtime
+                return
+            toolset_version = conanfile.settings.get_safe("compiler.runtime_version")
+            vs_version = {"v140": "14",
+                          "v141": "15",
+                          "v142": "16",
+                          "v143": "17"}.get(toolset_version)
+            if vs_version is None:
+                raise ConanException("Visual Studio Runtime version (v140-v143) not defined")
+            vcvars_ver = {"v140": "14.0",
+                          "v141": "14.1",
+                          "v142": "14.2",
+                          "v143": "14.3"}.get(toolset_version)
+        else:
+            vs_version = vs_ide_version(conanfile)
+            vcvars_ver = _vcvars_vers(conanfile, compiler, vs_version)
+        vcvarsarch = _vcvars_arch(conanfile)
+
+        winsdk_version = conanfile.conf.get("tools.microsoft:winsdk_version", check_type=str)
+        winsdk_version = winsdk_version or conanfile.settings.get_safe("os.version")
+        # The vs_install_path is like
+        # C:\Program Files (x86)\Microsoft Visual Studio\2019\Community
+        # C:\Program Files (x86)\Microsoft Visual Studio\2017\Community
+        # C:\Program Files (x86)\Microsoft Visual Studio 14.0
+        vcvars = vcvars_command(vs_version, architecture=vcvarsarch, platform_type=None,
+                                winsdk_version=winsdk_version, vcvars_ver=vcvars_ver,
+                                vs_install_path=vs_install_path)
+
+        content = textwrap.dedent("""\
+            @echo off
+            set __VSCMD_ARG_NO_LOGO=1
+            set VSCMD_SKIP_SENDTELEMETRY=1
+            echo conanvcvars.bat: Activating environment Visual Studio {} - {} - winsdk_version={} - vcvars_ver={}
+            {}
+            """.format(vs_version, vcvarsarch, winsdk_version, vcvars_ver, vcvars))
+        from conan.tools.env.environment import create_env_script
+        create_env_script(conanfile, content, CONAN_VCVARS_FILE, scope)
+
+
+
+#end Workaround
 
 class FFMpegConan(ConanFile):
     name = "ffmpeg"
@@ -343,6 +432,8 @@ class FFMpegConan(ConanFile):
             self.win_bash = True
             if not self.conf.get("tools.microsoft.bash:path", check_type=str):
                 self.tool_requires("msys2/cci.latest")
+            if self.settings.os == "WindowsStore":
+                self.tool_requires("gas-preprocessor/cci9309c67@camposs/stable")
 
     def source(self):
         get(self, **self.conan_data["sources"][self.version], strip_root=True)
@@ -358,7 +449,7 @@ class FFMpegConan(ConanFile):
 
     @property
     def _target_os(self):
-        if self.settings.os == "Windows":
+        if self.settings.os == "Windows" or self.settings.os == "WindowsStore":
             return "mingw32" if self.settings.compiler == "gcc" else "win32"
         elif is_apple_os(self):
             return "darwin"
@@ -429,6 +520,10 @@ class FFMpegConan(ConanFile):
         if not cross_building(self):
             env = VirtualRunEnv(self)
             env.generate(scope="build")
+        elif self.settings.os == "WindowsStore":
+            ms = VCVarsUWP(self)
+            ms.generate()
+            self.output.info("Generated VCVarsUWP")
 
         def opt_enable_disable(what, v):
             return "--{}-{}".format("enable" if v else "disable", what)
@@ -662,6 +757,9 @@ class FFMpegConan(ConanFile):
             env.append("CXXFLAGS", cxxflags)
             env.append("CFLAGS", cflags)
             env.vars(self).save_script("conanautotoolsdeps_cl_workaround")
+
+            self.output.info("Environ: {0}".format(str(os.environ)))
+
         else:
             deps = AutotoolsDeps(self)
             deps.generate()
