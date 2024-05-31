@@ -26,7 +26,22 @@ from conans.client.conf.detect_vs import vs_installation_path
 from conan.errors import ConanException
 from conan.tools.intel.intel_cc import IntelCC
 
-from conan.tools.microsoft.visual import _vcvars_vers, _vcvars_arch, vs_ide_version, vcvars_command
+from conan.tools.microsoft.visual import _vcvars_arch, vs_ide_version, vcvars_command
+
+
+# was removed in conan 2.3.x .. maybe there is a better way .. just copy the original function for now.
+def _vcvars_vers(conanfile, compiler, vs_version):
+    if int(vs_version) <= 14:
+        return None
+
+    assert compiler == "msvc"
+    # Code similar to CMakeToolchain toolset one
+    compiler_version = str(conanfile.settings.compiler.version)
+    # The equivalent of compiler 192 is toolset 14.2
+    vcvars_ver = "14.{}".format(compiler_version[-1])
+    return vcvars_ver
+
+
 
 CONAN_VCVARS_FILE = "conanvcvars.bat"
 
