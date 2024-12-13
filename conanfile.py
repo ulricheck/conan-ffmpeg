@@ -19,6 +19,111 @@ import re
 required_conan_version = ">=1.57.0"
 
 
+#Workaround for UWP
+
+import textwrap
+from conan.internal import check_duplicated_generator
+from conan.errors import ConanException
+from conan.tools.intel.intel_cc import IntelCC
+
+from conan.tools.microsoft.visual import _vcvars_arch, vs_ide_version, vcvars_command
+
+
+# was removed in conan 2.3.x .. maybe there is a better way .. just copy the original function for now.
+def _vcvars_vers(conanfile, compiler, vs_version):
+    if int(vs_version) <= 14:
+        return None
+
+    assert compiler == "msvc"
+    # Code similar to CMakeToolchain toolset one
+    compiler_version = str(conanfile.settings.compiler.version)
+    # The equivalent of compiler 192 is toolset 14.2
+    vcvars_ver = "14.{}".format(compiler_version[-1])
+    return vcvars_ver
+
+
+
+CONAN_VCVARS_FILE = "conanvcvars.bat"
+
+class VCVarsUWP:
+    """
+    VCVars class generator
+    """
+
+    def __init__(self, conanfile):
+        """
+        :param conanfile: ``< ConanFile object >`` The current recipe object. Always use ``self``.
+        """
+        self._conanfile = conanfile
+
+    def generate(self, scope="build"):
+        """
+        Creates a ``conanvcvars.bat`` file with the good args from settings to set environment
+        variables to configure the command line for native 32-bit or 64-bit compilation.
+
+        :param scope: ``str`` Launcher to be used to run all the variables. For instance,
+                      if ``build``, then it'll be used the ``conanbuild`` launcher.
+        """
+        check_duplicated_generator(self, self._conanfile)
+        conanfile = self._conanfile
+        os_ = conanfile.settings.get_safe("os")
+        if os_ != "WindowsStore":
+            return
+
+        compiler = conanfile.settings.get_safe("compiler")
+        if compiler not in ("msvc", "clang"):
+            return
+
+        vs_install_path = conanfile.conf.get("tools.microsoft.msbuild:installation_path")
+        if vs_install_path == "":  # Empty string means "disable"
+            return
+
+        if compiler == "clang":
+            # The vcvars only needed for LLVM/Clang and VS ClangCL, who define runtime
+            if not conanfile.settings.get_safe("compiler.runtime"):
+                # NMake Makefiles will need vcvars activated, for VS target, defined with runtime
+                return
+            toolset_version = conanfile.settings.get_safe("compiler.runtime_version")
+            vs_version = {"v140": "14",
+                          "v141": "15",
+                          "v142": "16",
+                          "v143": "17"}.get(toolset_version)
+            if vs_version is None:
+                raise ConanException("Visual Studio Runtime version (v140-v143) not defined")
+            vcvars_ver = {"v140": "14.0",
+                          "v141": "14.1",
+                          "v142": "14.2",
+                          "v143": "14.3"}.get(toolset_version)
+        else:
+            vs_version = vs_ide_version(conanfile)
+            vcvars_ver = _vcvars_vers(conanfile, compiler, vs_version)
+        vcvarsarch = _vcvars_arch(conanfile)
+
+        winsdk_version = conanfile.conf.get("tools.microsoft:winsdk_version", check_type=str)
+        winsdk_version = winsdk_version or conanfile.settings.get_safe("os.version")
+        # The vs_install_path is like
+        # C:\Program Files (x86)\Microsoft Visual Studio\2019\Community
+        # C:\Program Files (x86)\Microsoft Visual Studio\2017\Community
+        # C:\Program Files (x86)\Microsoft Visual Studio 14.0
+        vcvars = vcvars_command(vs_version, architecture=vcvarsarch, platform_type=None,
+                                winsdk_version=winsdk_version, vcvars_ver=vcvars_ver,
+                                vs_install_path=vs_install_path)
+
+        content = textwrap.dedent("""\
+            @echo off
+            set __VSCMD_ARG_NO_LOGO=1
+            set VSCMD_SKIP_SENDTELEMETRY=1
+            echo conanvcvars.bat: Activating environment Visual Studio {} - {} - winsdk_version={} - vcvars_ver={}
+            {}
+            """.format(vs_version, vcvarsarch, winsdk_version, vcvars_ver, vcvars))
+        from conan.tools.env.environment import create_env_script
+        create_env_script(conanfile, content, CONAN_VCVARS_FILE, scope)
+
+
+
+#end Workaround
+
+
 class FFMpegConan(ConanFile):
     name = "ffmpeg"
     version = "6.1.1"
@@ -66,6 +171,8 @@ class FFMpegConan(ConanFile):
         "with_vdpau": [True, False],
         "with_vulkan": [True, False],
         "with_xcb": [True, False],
+        "with_cuda": [True, False],
+        "with_cuvid": [True, False],
         "with_appkit": [True, False],
         "with_avfoundation": [True, False],
         "with_coreimage": [True, False],
@@ -118,7 +225,7 @@ class FFMpegConan(ConanFile):
     default_options = {
         "shared": False,
         "fPIC": True,
-        "avdevice": True,
+        "avdevice": False,
         "avcodec": True,
         "avformat": True,
         "swresample": True,
@@ -130,39 +237,41 @@ class FFMpegConan(ConanFile):
         "with_bzip2": True,
         "with_lzma": True,
         "with_libiconv": True,
-        "with_freetype": True,
-        "with_openjpeg": True,
+        "with_freetype": False,
+        "with_openjpeg": False,
         "with_openh264": True,
         "with_opus": True,
-        "with_vorbis": True,
+        "with_vorbis": False,
         "with_zeromq": False,
         "with_sdl": False,
         "with_libx264": True,
         "with_libx265": True,
-        "with_libvpx": True,
-        "with_libmp3lame": True,
+        "with_libvpx": False,
+        "with_libmp3lame": False,
         "with_libfdk_aac": True,
         "with_libwebp": True,
         "with_ssl": "openssl",
-        "with_libalsa": True,
-        "with_pulse": True,
+        "with_libalsa": False,
+        "with_pulse": False,
         "with_vaapi": True,
         "with_vdpau": True,
         "with_vulkan": False,
-        "with_xcb": True,
+        "with_xcb": False,
+        "with_cuda": True,
+        "with_cuvid": True,
         "with_appkit": True,
         "with_avfoundation": True,
         "with_coreimage": True,
-        "with_audiotoolbox": True,
-        "with_videotoolbox": True,
-        "with_programs": True,
+        "with_audiotoolbox": False,
+        "with_videotoolbox": False,
+        "with_programs": False,
         "with_libsvtav1": True,
         "with_libaom": True,
         "with_libdav1d": True,
         "with_libdrm": False,
         "with_jni": False,
         "with_mediacodec": False,
-        "with_xlib": True,
+        "with_xlib": False,
         "disable_everything": False,
         "disable_all_encoders": False,
         "disable_encoders": None,
@@ -246,7 +355,7 @@ class FFMpegConan(ConanFile):
         export_conandata_patches(self)
 
     def config_options(self):
-        if self.settings.os == "Windows":
+        if self.settings.os == "Windows" or self.settings.os == "WindowsStore":
             del self.options.fPIC
         if self.settings.os not in ["Linux", "FreeBSD"]:
             del self.options.with_vaapi
@@ -265,6 +374,9 @@ class FFMpegConan(ConanFile):
             del self.options.with_videotoolbox
         if not is_apple_os(self):
             del self.options.with_avfoundation
+        else:
+            del self.options.with_cuda
+            del self.options.with_cuvid
         if not self.settings.os == "Android":
             del self.options.with_jni
             del self.options.with_mediacodec
@@ -276,6 +388,8 @@ class FFMpegConan(ConanFile):
     def configure(self):
         if self.options.shared:
             self.options.rm_safe("fPIC")
+        if self.options.get_safe("with_cuda"):
+            self.options["cuda_dev_config"].shared = self.options.shared
         self.settings.rm_safe("compiler.cppstd")
         self.settings.rm_safe("compiler.libcxx")
 
@@ -284,7 +398,7 @@ class FFMpegConan(ConanFile):
 
     def requirements(self):
         if self.options.with_zlib:
-            self.requires("zlib/[>=1.2.11 <2]")
+            self.requires("zlib/[>=1.2.11 <2]@camposs/stable", force=True)
         if self.options.with_bzip2:
             self.requires("bzip2/1.0.8")
         if self.options.with_lzma:
@@ -292,7 +406,7 @@ class FFMpegConan(ConanFile):
         if self.options.with_libiconv:
             self.requires("libiconv/1.17")
         if self.options.with_freetype:
-            self.requires("freetype/2.13.2")
+            self.requires("freetype/2.13.2@camposs/stable")
         if self.options.with_openjpeg:
             self.requires("openjpeg/2.5.2")
         if self.options.with_openh264:
@@ -339,6 +453,10 @@ class FFMpegConan(ConanFile):
             self.requires("dav1d/1.4.3")
         if self.options.get_safe("with_libdrm"):
             self.requires("libdrm/2.4.119")
+        if self.options.get_safe("with_cuda"):
+            self.requires("cuda_dev_config/2.1@camposs/stable")
+        if self.options.get_safe("with_cuvid"):
+            self.requires("nvidia-video-codec-sdk/12.1.14.0@vendor/stable")
 
     def validate(self):
         if self.options.with_ssl == "securetransport" and not is_apple_os(self):
@@ -380,6 +498,8 @@ class FFMpegConan(ConanFile):
             self.win_bash = True
             if not self.conf.get("tools.microsoft.bash:path", check_type=str):
                 self.tool_requires("msys2/cci.latest")
+            if self.settings.os == "WindowsStore":
+                self.tool_requires("gas-preprocessor/cci9309c67@camposs/stable")
 
     def source(self):
         get(self, **self.conan_data["sources"][self.version], strip_root=True)
@@ -395,7 +515,7 @@ class FFMpegConan(ConanFile):
 
     @property
     def _target_os(self):
-        if self.settings.os == "Windows":
+        if self.settings.os == "Windows" or self.settings.os == "WindowsStore":
             return "mingw32" if self.settings.compiler == "gcc" else "win32"
         elif is_apple_os(self):
             return "darwin"
@@ -465,6 +585,10 @@ class FFMpegConan(ConanFile):
         if not cross_building(self):
             env = VirtualRunEnv(self)
             env.generate(scope="build")
+        elif self.settings.os == "WindowsStore":
+            ms = VCVarsUWP(self)
+            ms.generate()
+            self.output.info("Generated VCVarsUWP")
 
         def opt_enable_disable(what, v):
             return "--{}-{}".format("enable" if v else "disable", what)
@@ -532,8 +656,8 @@ class FFMpegConan(ConanFile):
             opt_enable_disable("jni", self.options.get_safe("with_jni")),
             opt_enable_disable("mediacodec", self.options.get_safe("with_mediacodec")),
             opt_enable_disable("xlib", self.options.get_safe("with_xlib")),
-            "--disable-cuda",  # FIXME: CUDA support
-            "--disable-cuvid",  # FIXME: CUVID support
+            opt_enable_disable("cuda", self.options.get_safe("with_cuda")),
+            opt_enable_disable("cuvid", self.options.get_safe("with_cuvid")),
             # Licenses
             opt_enable_disable("nonfree", self.options.get_safe("with_libfdk_aac") or (self.options.with_ssl and (
                 self.options.with_libx264 or self.options.with_libx265 or self.options.postproc))),
@@ -691,6 +815,7 @@ class FFMpegConan(ConanFile):
             env = Environment()
             env.append("CPPFLAGS", [f"-I{unix_path(self, p)}" for p in includedirs] + [f"-D{d}" for d in defines])
             env.append("_LINK_", [lib if lib.endswith(".lib") else f"{lib}.lib" for lib in libs])
+            # last version replaced above line with: env.append("LIBS", [lib if lib.endswith(".lib") else f"{lib}.lib" for lib in libs])
             env.append("LDFLAGS", [f"-LIBPATH:{unix_path(self, p)}" for p in libdirs] + linkflags)
             env.append("CXXFLAGS", cxxflags)
             env.append("CFLAGS", cflags)
@@ -725,6 +850,16 @@ class FFMpegConan(ConanFile):
             # ffmepg expects libx264.pc instead of x264.pc
             with chdir(self, self.generators_folder):
                 shutil.copy("x264.pc", "libx264.pc")
+        if self.options.get_safe("with_cuda"):
+            # ffmepg expects ffnvcodec.pc instead of nvidia-video-codec-sdk.pc
+            with chdir(self, self.generators_folder):
+                shutil.copy("nvidia-video-codec-sdk.pc", "ffnvcodec.pc")
+                replace_in_file(self, os.path.join(self.generators_folder, "ffnvcodec.pc"), "nvidia-video-codec-sdk", "ffnvcodec")
+                if not (self.settings.os == "Windows" or self.settings.os == "WindowsStore"):
+                    replace_in_file(self, os.path.join(self.generators_folder, "ffnvcodec.pc"), 
+                        """Libs: -L"${libdir}" -lnvcuvid -lnvidia-encode""",
+                        """Libs: -L"${libdir}" """)
+
         autotools = Autotools(self)
         autotools.configure()
         autotools.make()
@@ -822,7 +957,7 @@ class FFMpegConan(ConanFile):
                     avcodec.sharedlinkflags.append("-Wl,-Bsymbolic")
             if self.options.avfilter:
                 avfilter.system_libs.append("pthread")
-        elif self.settings.os == "Windows":
+        elif self.settings.os == "Windows" or self.settings.os == "WindowsStore":
             if self.options.avcodec:
                 avcodec.system_libs = ["mfplat", "mfuuid", "strmiids"]
             if self.options.avdevice:
@@ -897,6 +1032,11 @@ class FFMpegConan(ConanFile):
                 avcodec.requires.append("libaom-av1::libaom-av1")
             if self.options.get_safe("with_libdav1d"):
                 avcodec.requires.append("dav1d::dav1d")
+            if self.options.get_safe("with_cuda"):
+                avcodec.requires.append("cuda_dev_config::cuda_dev_config")
+            if self.options.get_safe("with_cuvid"):
+                avcodec.requires.append("nvidia-video-codec-sdk::nvidia-video-codec-sdk")
+
 
         if self.options.avformat:
             if self.options.with_bzip2:
